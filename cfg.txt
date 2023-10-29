@@ -1,2 +1,2 @@
-../f_dir
-../s_dir
+f_dir
+s_dir

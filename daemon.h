@@ -5,6 +5,8 @@
 #include <csignal>
 #include <chrono>
 #include <string>
+#include <syslog.h>
+
 #ifndef DAEMON_H
 #define DAEMON_H
 
@@ -26,7 +28,7 @@ private:
     static void _h_sigterm(int sig);
     static void _read_cfg(const std::string& cfg_path);
     void task() const;
-    const std::string _pid_path = "/home/pavel/dev/daemon/daemon.pid";
+    const std::string _pid_path = "/var/run/daemon.pid";
     const std::string _proc_path = "/proc";
     static std::string _f_dir_path;
     static std::string _s_dir_path;

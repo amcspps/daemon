@@ -10,6 +10,7 @@
 #include <format>
 #include <sys/stat.h>
 #include <cerrno>
+#include <sys/syslog.h>
 #include <unistd.h>
 
 namespace fs = std::filesystem;
@@ -20,23 +21,27 @@ std::string Daemon::_s_dir_path = "";
 
 
 Daemon::Daemon(const std::string& cfg_path) {
+	openlog("daemon", LOG_PID, LOG_USER);
 	if(!fs::exists(cfg_path)) {
+		syslog(LOG_ERR, "config file does not exist");
+		closelog();
 		exit(EXIT_FAILURE);
 	}
 	else {
 		_cfg_path = fs::absolute(cfg_path).string();
+		syslog(LOG_INFO, "config path read successfully");
 		_read_cfg(cfg_path);
 	}
 }
 void Daemon::_init() const {
-	std::cout << "daemon started" << std::endl;
-	//clear workspace for another daemon process
 	if (fs::exists(_pid_path)) {
 		std::ifstream pid_file(_pid_path);
 		pid_t existing_pid;
 		if (pid_file >> existing_pid) {
 			if (fs::exists(_proc_path + "/" + std::to_string(existing_pid))) {
+				syslog(LOG_WARNING, "another instance of daemon currently works");
 				kill(existing_pid, SIGTERM);
+				syslog(LOG_WARNING,"another instance of daemon killed successfully");
 			}
 		}
 	}
@@ -49,14 +54,15 @@ void Daemon::_init() const {
 		std::signal(SIGHUP, _h_sighup);
 		std::signal(SIGTERM, _h_sigterm);
 
-		std::ofstream pid_file(_pid_path,std::ios::out);
+		std::ofstream pid_file(_pid_path, std::ios::out);
 		if (pid_file.is_open()) {
 			pid_file << getpid();
 		}
 		else {
-			std::cerr << strerror(errno) << std::endl;
+			syslog(LOG_ERR,"error while writing pid");
 		}
 	}
+	syslog(LOG_INFO, "initialization successful");
 }
 
 void Daemon::run() const {
@@ -68,10 +74,13 @@ void Daemon::run() const {
 }
 
 void Daemon::_h_sighup(int sig) {
+	syslog(LOG_INFO, "SIGHUP received, re-reading config files");
 	_read_cfg(_cfg_path);
 }
 
 void Daemon::_h_sigterm(int sig) {
+	syslog(LOG_INFO, "SIGTERM received, terminating process...");
+	closelog();
 	exit(EXIT_SUCCESS);
 }
 
@@ -91,15 +100,25 @@ void Daemon::task() const {
 		std::chrono::time_point<std::chrono::utc_clock> now = std::chrono::utc_clock::now();
 		std::string output = std::format("dir size: {}B at time {:%T}\n", total_size, now);
 		logfile << output;
-        }
+	}
 }
 
 void Daemon::_read_cfg(const std::string& cfg_path) {
-        std::ifstream cfg_file(cfg_path);
-		std::string rel_f = "";
-		std::string rel_s = "";
-        std::getline(cfg_file, rel_f);
-        std::getline(cfg_file, rel_s);
-		_f_dir_path = fs::absolute(rel_f).string();
-		_s_dir_path = fs::absolute(rel_s).string();
-    }
+	std::ifstream cfg_file(cfg_path);
+	std::string rel_f = "";
+	std::string rel_s = "";
+	std::getline(cfg_file, rel_f);
+	std::getline(cfg_file, rel_s);
+	_f_dir_path = fs::absolute(rel_f).string();
+	_s_dir_path = fs::absolute(rel_s).string();
+	if(!fs::exists(_f_dir_path)) {
+		syslog(LOG_ERR, "task: first directory does not exist");
+		closelog();
+		exit(EXIT_FAILURE);
+	}
+	if(!fs::exists(_s_dir_path)) {
+		syslog(LOG_ERR, "task: second directory does not exist");
+		closelog();
+		exit(EXIT_FAILURE);
+	}
+}
