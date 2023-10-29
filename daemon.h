@@ -20,21 +20,18 @@ public:
     }
     void run() const;
 private:
-    Daemon(const std::string& _cfg_path) {
-        std::cout << "daemon instance created" << std::endl;
-        std::ifstream cfg_file(_cfg_path);
-        std::getline(cfg_file, _f_dir_path);
-        std::getline(cfg_file, _s_dir_path);
-    };
+    Daemon(const std::string& cfg_path);
     void _init() const;
-    void _h_sighup(int sig);
-    void _h_sigterm(int sig);
+    static void _h_sighup(int sig);
+    static void _h_sigterm(int sig);
+    static void _read_cfg(const std::string& cfg_path);
     void task() const;
     const std::string _pid_path = "/home/pavel/dev/daemon/daemon.pid";
     const std::string _proc_path = "/proc";
-    std::string _f_dir_path = "";
-    std::string _s_dir_path = "";
-    const int _time = 2;
+    static std::string _f_dir_path;
+    static std::string _s_dir_path;
+    static std::string _cfg_path;
+    const unsigned int _time = 2;
 };
 
 #endif
