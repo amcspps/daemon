@@ -7,7 +7,8 @@
 #include<fstream>
 #include <ios>
 #include <string>
-#include <format>
+//#include <format>
+#include <ctime>
 #include <sys/stat.h>
 #include <cerrno>
 #include <sys/syslog.h>
@@ -22,7 +23,7 @@ std::string Daemon::_s_dir_path = "";
 
 Daemon::Daemon(const std::string& cfg_path) {
 	openlog("daemon", LOG_PID, LOG_USER);
-	if(!fs::exists(cfg_path)) {
+	if(!fs::exists(fs::absolute(cfg_path).string())) {
 		syslog(LOG_ERR, "config file does not exist");
 		closelog();
 		exit(EXIT_FAILURE);
@@ -33,6 +34,7 @@ Daemon::Daemon(const std::string& cfg_path) {
 		_read_cfg(cfg_path);
 	}
 }
+
 void Daemon::_init() const {
 	if (fs::exists(_pid_path)) {
 		std::ifstream pid_file(_pid_path);
@@ -45,10 +47,14 @@ void Daemon::_init() const {
 			}
 		}
 	}
-
-
-	if(fork()) {
-		exit(0);
+	pid_t child = fork();
+	if(child < 0) {
+		syslog(LOG_ERR,"fork failed");
+		closelog();
+		exit(EXIT_FAILURE);
+	}
+	else if (child) {
+		exit(EXIT_SUCCESS);
 	}
 	else {
 		std::signal(SIGHUP, _h_sighup);
@@ -60,6 +66,7 @@ void Daemon::_init() const {
 		}
 		else {
 			syslog(LOG_ERR,"error while writing pid");
+			exit(EXIT_FAILURE);
 		}
 	}
 	syslog(LOG_INFO, "initialization successful");
@@ -97,9 +104,11 @@ void Daemon::task() const {
 		for (const auto& subdir : fs::directory_iterator(_f_dir_path)) {
 			fs::remove_all(subdir);
 		}
-		std::chrono::time_point<std::chrono::utc_clock> now = std::chrono::utc_clock::now();
-		std::string output = std::format("dir size: {}B at time {:%T}\n", total_size, now);
-		logfile << output;
+		time_t now = time(0);
+		logfile << "dir size: " << total_size << "at time: " << std::string(ctime(&now)) << std::endl;
+		// std::chrono::time_point<std::chrono::utc_clock> now = std::chrono::utc_clock::now();
+		// std::string output = std::format("dir size: {}B at time {:%T}\n", total_size, now);
+		//logfile << output;
 	}
 }
 
